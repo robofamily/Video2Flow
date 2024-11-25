@@ -2,6 +2,14 @@ import torch
 import imageio.v3 as iio
 from cotracker.utils.visualizer import Visualizer
 
+class CoTracker:
+
+    def __init__(self, device):
+        self.tracker = torch.hub.load("facebookresearch/co-tracker", "cotracker2_online").to(device)
+    
+    def track(self, video, ):
+
+
 frames = iio.imread('./original.mp4', plugin="FFMPEG")  # plugin="pyav"
 device = 'cuda'
 grid_size = 100
@@ -12,7 +20,6 @@ video_chunks = [video[:, ind:ind + video_chunk_max_len] for ind in range(0, vide
 
 B = video.shape[0]
 pred = {'tracks': [[] for i in range(B)], 'visibility': [[] for i in range(B)]}
-cotracker = torch.hub.load("facebookresearch/co-tracker", "cotracker2_online").to(device)
 for video_chunk in video_chunks:
     cotracker(video_chunk=video_chunk, is_first_step=True, grid_size=grid_size)
     # Process the video
