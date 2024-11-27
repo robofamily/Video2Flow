@@ -248,7 +248,7 @@ class GroundedSAM:
 
         return masks, results
 
-    def get_video_mask(self, video, text, initial_threshold, visualize=False):
+    def get_video_mask(self, video, text, initial_threshold, visualize=False, visualize_fname=None):
         source_frames = Path(SOURCE_VIDEO_FRAME_DIR)
         source_frames.mkdir(parents=True, exist_ok=True)
         with sv.ImageSink(
@@ -273,6 +273,8 @@ class GroundedSAM:
             initial_threshold=initial_threshold,
             visualize=False,
         )
+        if masks is None:
+            return None
 
         with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
 
@@ -301,6 +303,9 @@ class GroundedSAM:
                     out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
                     for i, out_obj_id in enumerate(out_obj_ids)
                 }
+            
+            movement_measurements = self.measure_movement(video_segments)
+            moved_obj_id = np.argmax(movement_measurements)
 
             if visualize:
                 if os.path.exists(SAVE_TRACKING_RESULTS_DIR):
@@ -314,10 +319,32 @@ class GroundedSAM:
                     confidences = results[0]["scores"].cpu().numpy().tolist()
                     class_names = results[0]["labels"]
                     fname = os.path.join(SAVE_TRACKING_RESULTS_DIR, f"annotated_frame_{frame_idx:05d}.jpg")
+
+                    # only keep the moved object
+                    masks = masks[moved_obj_id:moved_obj_id+1]
+                    class_names = class_names[moved_obj_id:moved_obj_id+1]
+                    confidences = confidences[moved_obj_id:moved_obj_id+1]
+
                     self.visualize(img, sv.mask_to_xyxy(masks), class_names, confidences, masks, fname)
-                create_video_from_images(SAVE_TRACKING_RESULTS_DIR, OUTPUT_VIDEO_PATH)
+                if visualize_fname is not None:
+                    create_video_from_images(SAVE_TRACKING_RESULTS_DIR, visualize_fname)
+                else:
+                    create_video_from_images(SAVE_TRACKING_RESULTS_DIR, OUTPUT_VIDEO_PATH)
 
         return video_segments
+    
+    def measure_movement(self, video_segments):
+        num_objects = len(video_segments[0])
+        movement_measurements = [0 for obj_id in range(num_objects)]
+        first_frame_masks = [mask.astype(np.int32) for obj_id, mask in video_segments[0].items()]
+        
+        for frame_id in range(len(video_segments)):
+            frame = video_segments[frame_id]
+            for obj_id in range(num_objects):
+                current_mask = frame[obj_id+1].astype(np.int32)
+                movement = np.sum(np.abs(first_frame_masks[obj_id] - current_mask)) / np.sum(first_frame_masks[obj_id])
+                movement_measurements[obj_id] += movement
+        return movement_measurements
     
 if __name__ == "__main__":
     gsam = GroundedSAM(

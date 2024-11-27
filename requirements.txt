@@ -1,3 +1,6 @@
-lmdeploy
-timm
-flash-attn
+av
+qwen_vl_utils
+opencv-python-headless
+supervision
+dds-cloudapi-sdk
+lmdb

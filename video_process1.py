@@ -26,20 +26,17 @@ if __name__ == '__main__':
         sam2_checkpoint="../sam2/checkpoints/sam2.1_hiera_large.pt",
         sam2_config="configs/sam2.1/sam2.1_hiera_l.yaml",
     )
-    # video = open_video("/root/autodl-tmp/lmdb_droid/" + "right_0.mp4")
-    from read_lmdb_droid import DroidReader
-    droid_reader = DroidReader("/root/autodl-tmp/lmdb_droid/")
-    for ep_idx in tqdm(range(100), desc="process episodes"):
-        left_video, right_video, insts = droid_reader.visualize_episode(ep_idx, show_flow=False, return_video_and_inst=True)
-        object = qwen.get_object_proposal(
-            image = right_video[0],
-            instruction=insts[0],
-        )
-        masks = gsam.get_video_mask(
-            video = right_video,
-            text=object,
-            visualize=True,
-            visualize_fname=f"{ep_idx}.mp4",
-            initial_threshold=0.05,
-        )
+    video = open_video("./test.mp4")
+    object = qwen.get_object_proposal_from_video(
+        video_path = "./test.mp4",
+        instruction="Move object into or out of container (ex: drawer, clothes hamper, plate, trashcan, washer)",
+    )
+    import pdb; pdb; pdb.set_trace()
+    masks = gsam.get_video_mask(
+        video = video,
+        text=object,
+        visualize=True,
+        visualize_fname=f"track.mp4",
+        initial_threshold=0.05,
+    )
     import pdb; pdb.set_trace()

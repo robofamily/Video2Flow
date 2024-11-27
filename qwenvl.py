@@ -14,15 +14,12 @@ class QwenObjectProposer:
         ).to(self.device)
         self.processor = AutoProcessor.from_pretrained(model_id)
     
-    def infer(self, image, prompt):
+    def infer(self, vision_content, prompt):
         messages = [
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "image",
-                        "image": Image.fromarray(image), 
-                    },
+                    vision_content,
                     {
                         "type": "text", 
                         "text": prompt,
@@ -56,20 +53,41 @@ class QwenObjectProposer:
         return output_text
 
     def get_object_proposal(self, image, instruction):
+        vision_content = {
+            "type": "image",
+            "image": Image.fromarray(image), 
+        }
         prompt = "The instruction to the robot is: " \
         + instruction + \
         ". Please answer which object will be manipulated with a single word. " + \
         "For example, if the robotics arm will manipulate an apple, the answer should be: apple."
-        object = self.infer(image, prompt)[0] + '.'
+        object = self.infer(vision_content, prompt)[0] + '.'
         return object
-    
+        
+    def get_object_proposal_from_video(self, video_path, instruction):
+        vision_content = {
+            "type": "video",
+            "video": video_path, 
+            "max_pixels": 1280 * 720,
+            "fps": 60,
+        }
+        prompt = "Please watch this video and answer which object is manipulated by the robotics arm with a single word. " + \
+        "The instruction to the robot is: " + instruction + ". However, the manipulated object may not be in the instruction. " + \
+        "For example, if the robotics arm will manipulate an apple, the answer should be: apple."
+        object = self.infer(vision_content, prompt)[0] + '.'
+        return object
+        
     def verify_object(self, image, object):
+        vision_content = {
+            "type": "image",
+            "image": Image.fromarray(image), 
+        }
         prompt = "Is is a figure of " + object + "? Please answer with a single word. " + \
         "For example, if I ask you whether it is a figure of apple, and the main object of the figure is an apple, " + \
         "your answer should be: yes." + \
         "If I ask you whether it is a figure of apple, and the main object of the figure is a banana, " + \
         "your answer should be: no.",
-        answer = self.infer(image, prompt)[0]
+        answer = self.infer(vision_content, prompt)[0]
         if 'yes' in answer:
             return True
         elif 'no' in answer:
