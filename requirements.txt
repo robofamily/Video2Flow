@@ -1,6 +1,8 @@
 av
+transformers
 qwen_vl_utils
 opencv-python-headless
 supervision
 dds-cloudapi-sdk
 lmdb
+git+https://github.com/facebookresearch/sam2.git

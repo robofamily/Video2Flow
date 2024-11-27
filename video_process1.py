@@ -23,15 +23,14 @@ if __name__ == '__main__':
     gsam = GroundedSAM(
         qwen=qwen,
         grounding_model_id="IDEA-Research/grounding-dino-base",
-        sam2_checkpoint="../sam2/checkpoints/sam2.1_hiera_large.pt",
+        sam2_checkpoint="./sam_ckpt/sam2.1_hiera_large.pt",
         sam2_config="configs/sam2.1/sam2.1_hiera_l.yaml",
     )
     video = open_video("./test.mp4")
-    object = qwen.get_object_proposal_from_video(
+    object, command = qwen.get_object_proposal_from_video(
         video_path = "./test.mp4",
         instruction="Move object into or out of container (ex: drawer, clothes hamper, plate, trashcan, washer)",
     )
-    import pdb; pdb; pdb.set_trace()
     masks = gsam.get_video_mask(
         video = video,
         text=object,
