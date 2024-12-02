@@ -4,7 +4,7 @@ from PIL import Image
 from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
 from qwen_vl_utils import process_vision_info
 
-def sample_frames(video_tensor, num_frames=6):
+def sample_frames(video_tensor, num_frames=12):
     T, C, H, W = video_tensor.size()
     if T < num_frames:
         raise ValueError("Number of video frames are fewer than num_frames")
@@ -25,20 +25,25 @@ class QwenObjectProposer:
         self.model = Qwen2VLForConditionalGeneration.from_pretrained(
             model_id,
             torch_dtype=torch.bfloat16, 
-        ).to(self.device)
+            attn_implementation="flash_attention_2",
+            device_map=self.device,
+        )
         self.processor = AutoProcessor.from_pretrained(model_id)
     
-    def infer(self, vision_content, prompt):
+    def infer(self, vision_contents, prompt):
+        content = []
+        for vision_content in vision_contents:
+            content.append(vision_content)
+        content.append(
+            {
+                "type": "text", 
+                "text": prompt,
+            }
+        )
         messages = [
             {
                 "role": "user",
-                "content": [
-                    vision_content,
-                    {
-                        "type": "text", 
-                        "text": prompt,
-                    },
-                ],
+                "content": content,
             }
         ]
 
@@ -69,52 +74,60 @@ class QwenObjectProposer:
         return output_text
 
     def get_object_proposal(self, image, instruction):
-        vision_content = {
+        vision_contents = [{
             "type": "image",
             "image": Image.fromarray(image), 
-        }
+        }]
         prompt = "The instruction to the robot is: " \
         + instruction + \
         ". Please answer which object will be manipulated with a single word. " + \
         "For example, if the robotics arm will manipulate an apple, the answer should be: apple."
-        object = self.infer(vision_content, prompt)[0] + '.'
+        object = self.infer(vision_contents, prompt)[0] + '.'
         return object
         
-    def get_object_proposal_from_video(self, video_path, instruction):
-        vision_content = {
-            "type": "video",
-            "video": video_path, 
-            "max_pixels": 1280 * 720,
-            "fps": 60,
-        }
+    def get_object_proposal_from_video(self, left_video_path, right_video_path, instruction):
+        vision_contents = [
+            {
+                "type": "video",
+                "video": left_video_path, 
+                "max_pixels": 1280 * 720,
+                "fps": 60,
+            },
+            {
+                "type": "video",
+                "video": right_video_path, 
+                "max_pixels": 1280 * 720,
+                "fps": 60,
+            },
+        ]
 
-        prompt_1 = "You are an operator who controls a robotics arm by language command. Please watch this demonstration video" + \
+        prompt_1 = "You are an operator who controls a robotics arm by language command. Please watch the demonstration videos from 2 cameras" + \
         "Now, the robotics arm is reset to the original position and you must generate suitable language instruction to repeat the manipulation in the video. " + \
         "A reference instruction to the robot is: " + instruction + ". However, the manipulated object may not be in the instruction and the instruction may be confusing. " + \
         "Your command should comtain 2 parts." + \
         "The first part is a short sentence that contains at least a manipulated object (word) and a manipulation (verb)." + \
         "The second part is a detailed description of the manipulation. " + \
         "Example command: [short] pick the apple and put it on the shelf. [long] approach the red apple on the right hand side of the desk. pick the red apple and then move to the black shelf in the room. place the apple on the top of the shelf."
-        command = self.infer(vision_content, prompt_1)[0]
+        command = self.infer(vision_contents, prompt_1)[0]
 
         prompt_2 = "Please watch this video and answer which object is grasped and manipulated by the robotics arm with a single word. " + \
         "The instruction to the robot is: " + command + \
         "For example, if the robotics arm will manipulate an apple, the answer should be: apple."
-        object = self.infer(vision_content, prompt_2)[0] + '.'
+        object = self.infer(vision_contents, prompt_2)[0] + '.'
 
         return object, command
     
     def verify_object(self, image, object):
-        vision_content = {
+        vision_contents = [{
             "type": "image",
             "image": Image.fromarray(image), 
-        }
+        }]
         prompt = "Is is a figure of " + object + "? Please answer with a single word. " + \
         "For example, if I ask you whether it is a figure of apple, and the main object of the figure is an apple, " + \
         "your answer should be: yes." + \
         "If I ask you whether it is a figure of apple, and the main object of the figure is a banana, " + \
         "your answer should be: no.",
-        answer = self.infer(vision_content, prompt)[0]
+        answer = self.infer(vision_contents, prompt)[0]
         if 'yes' in answer:
             return True
         elif 'no' in answer:

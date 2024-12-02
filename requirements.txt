@@ -1,5 +1,7 @@
 av
 transformers
+accelerate
+flash_attn
 qwen_vl_utils
 opencv-python-headless
 supervision
